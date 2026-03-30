@@ -1,0 +1,69 @@
+# Core dependencies
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# GUI Framework
+PyQt5>=5.15.0
+PyQt5-sip>=12.12.0
+
+# Input handling
+pynput>=1.7.6
+keyboard>=0.13.5
+
+# Configuration
+PyYAML>=6.0
+python-dotenv>=1.0.0
+
+# Logging and utilities
+colorlog>=6.7.0
+tqdm>=4.65.0
+
+# Audio (optional)
+pyaudio>=0.2.11
+pydub>=0.25.1
+
+# Additional features
+psutil>=5.9.0
+requests>=2.31.0
+
+# Testing dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-qt>=4.2.0
+pytest-mock>=3.11.0
+pytest-timeout>=2.1.0
+pytest-xdist>=3.3.0
+pytest-asyncio>=0.21.0
+
+# Core dependencies
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# GUI Framework
+PyQt5>=5.15.0
+PyQt5-sip>=12.12.0
+
+# Input handling
+pynput>=1.7.6
+keyboard>=0.13.5
+
+# Configuration
+PyYAML>=6.0
+python-dotenv>=1.0.0
+
+# Logging and utilities
+colorlog>=6.7.0
+tqdm>=4.65.0
+
+# Audio (optional)
+pyaudio>=0.2.11
+pydub>=0.25.1
+
+# Additional features
+psutil>=5.9.0
+requests>=2.31.0
+
+# Hot reload
+watchdog>=3.0.0
