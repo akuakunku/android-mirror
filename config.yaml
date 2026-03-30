@@ -21,8 +21,8 @@ device:
 display:
   always_on_top: false
   fullscreen: false
-  max_fps: 30
-  max_size: 1024
+  max_fps: 60
+  max_size: 1920
 input:
   gestures_enabled: true
   keyboard_enabled: true
@@ -31,7 +31,7 @@ input:
 logging:
   backup_count: 5
   file_enabled: true
-  level: INFO
+  level: DEBUG
   max_file_size: 10MB
   verbose: false
 network:
@@ -61,21 +61,21 @@ shortcuts:
   stop_mirroring: Ctrl+Shift+X
   toggle_always_on_top: Ctrl+Shift+T
 startup:
-  auto_connect: false
+  auto_connect: true
   check_updates: true
 ui:
-  language: Indonesian
+  language: English
   show_fps: true
   show_toolbar: true
   theme: Dark
 video:
-  bit_rate: 1M
-  buffer: 6
+  bit_rate: 4M
+  buffer: 20
   crop: null
   video_codec: h264
 window:
   always_on_top: false
-  fullscreen: false
+  fullscreen: true
   height: 750
   min_height: 600
   min_width: 480

@@ -26,7 +26,7 @@ class SettingsDialog(QDialog):
         self.logger = get_logger(__name__)
         
         self.setWindowTitle("Settings")
-        self.setMinimumSize(550, 500)
+        self.setMinimumSize(450, 400)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         
         self._setup_ui()
@@ -62,7 +62,7 @@ class SettingsDialog(QDialog):
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
         cancel_btn.setMinimumHeight(35)
-        save_btn.setStyleSheet("background-color: #1e1bab;")
+        cancel_btn.setStyleSheet("background-color: #1e1bab;")
         button_layout.addWidget(cancel_btn)
         
         reset_btn = QPushButton("Reset to Default")
