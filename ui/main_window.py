@@ -149,9 +149,9 @@ class MainWindow(QMainWindow):
             QPushButton {
                 background-color: #4CAF50;
                 color: white;
-                font-size: 14px;
+                font-size: 12px;
                 font-weight: bold;
-                padding: 10px;
+                padding: 4px;
             }
             QPushButton:hover {
                 background-color: #45a049;
@@ -165,9 +165,9 @@ class MainWindow(QMainWindow):
             QPushButton {
                 background-color: #f44336;
                 color: white;
-                font-size: 14px;
+                font-size: 12px;
                 font-weight: bold;
-                padding: 10px;
+                padding: 4px;
             }
             QPushButton:hover {
                 background-color: #da190b;

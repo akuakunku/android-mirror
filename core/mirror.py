@@ -10,10 +10,6 @@ from typing import Optional, Callable
 from adb.device_manager import DeviceManager
 from utils.logger import get_logger
 
-# Hapus import yang menyebabkan circular:
-# from video.streamer import VideoStreamer
-# from input.mouse_handler import MouseHandler
-# from core.mirror import AndroidMirror  <-- INI YANG HARUS DIHAPUS
 
 class AndroidMirror:
     """Main mirroring controller"""
@@ -141,14 +137,14 @@ class AndroidMirror:
             cmd.extend([
                 '--max-fps', '30',
                 '--max-size', '720',
-                '--video-bit-rate', '2M',
+                '--video-bit-rate', '1M',
                 '--video-codec', 'h264',
                 '--no-audio',
                 '--video-buffer', '50',
                 '--window-x', '100',
                 '--window-y', '100',
-                '--window-width', '800',
-                '--window-height', '600',
+                '--window-width', '720',
+                '--window-height', '360',
             ])
             
         elif optimization == 'balanced':
@@ -162,7 +158,7 @@ class AndroidMirror:
                 '--window-x', '100',
                 '--window-y', '100',
                 '--window-width', '1024',
-                '--window-height', '800',
+                '--window-height', '720',
             ])
             
         elif optimization == 'quality':
