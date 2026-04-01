@@ -1,0 +1,82 @@
+advanced:
+  debug_mode: false
+  experimental_features: false
+  show_fps: true
+  verbose_logging: false
+audio:
+  bit_rate: 128k
+  codec: opus
+  enabled: true
+connection:
+  auto_reconnect: true
+  default_connection: usb
+  retry_count: 3
+  timeout_seconds: 10
+  wireless_port: 5555
+device:
+  lock_screen_on_exit: false
+  power_off_on_close: false
+  stay_awake: true
+  turn_screen_off: false
+display:
+  always_on_top: false
+  fullscreen: false
+  max_fps: 60
+  max_size: 1920
+input:
+  gestures_enabled: true
+  keyboard_enabled: true
+  map_mouse: true
+  touch_enabled: true
+logging:
+  backup_count: 5
+  file_enabled: true
+  level: DEBUG
+  max_file_size: 10MB
+  verbose: false
+network:
+  network_prefix: 192.168.1.
+  scan_end: 254
+  scan_start: 1
+  scan_timeout: 3
+paths:
+  logs: logs
+  recordings: C:/Users/Administrator/Videos
+  scrcpy: C:/Users/Administrator/Desktop/android-mirror/scrcpy/scrcpy.exe
+  screenshots: C:/Users/Administrator/Pictures
+performance:
+  display_buffer: 2
+  frame_skip: false
+  usb_mode: quality
+  wifi_mode: balanced
+recording:
+  default_path: ~/Videos/android_mirror
+  enabled: true
+  format: mp4
+shortcuts:
+  fullscreen: F11
+  recording: Ctrl+Shift+R
+  screenshot: Ctrl+Shift+P
+  start_mirroring: Ctrl+Shift+S
+  stop_mirroring: Ctrl+Shift+X
+  toggle_always_on_top: Ctrl+Shift+T
+startup:
+  auto_connect: true
+  check_updates: true
+ui:
+  language: English
+  show_fps: true
+  show_toolbar: true
+  theme: Dark
+video:
+  bit_rate: 4M
+  buffer: 20
+  crop: null
+  video_codec: h264
+window:
+  always_on_top: false
+  fullscreen: true
+  height: 750
+  min_height: 600
+  min_width: 480
+  width: 900

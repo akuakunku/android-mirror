@@ -7,13 +7,54 @@ import sys
 import os
 import argparse
 import platform
+import traceback
 from PyQt5.QtWidgets import QApplication, QMessageBox, QSplashScreen
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap, QFont, QIcon  # Tambahkan QIcon
-from core.mirror import AndroidMirror
-from ui.main_window import MainWindow
-from utils.logger import setup_logger
-from utils.config import load_config
+from PyQt5.QtGui import QPixmap, QFont, QIcon
+
+# Set up basic logging before anything else
+def setup_basic_logging():
+    """Setup basic logging for executable"""
+    try:
+        import logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        return logging.getLogger(__name__)
+    except Exception:
+        return None
+
+# Initialize basic logger
+logger = setup_basic_logging()
+
+# Try to import modules with fallback
+try:
+    from core.mirror import AndroidMirror
+    from ui.main_window import MainWindow
+    from utils.logger import setup_logger, get_logger as get_utils_logger
+    from utils.config import load_config
+except ImportError as e:
+    if logger:
+        logger.error(f"Import error: {e}")
+    # Fallback: try to import from current directory
+    sys.path.insert(0, os.path.dirname(__file__))
+    try:
+        from core.mirror import AndroidMirror
+        from ui.main_window import MainWindow
+        from utils.logger import setup_logger, get_logger as get_utils_logger
+        from utils.config import load_config
+    except ImportError as e2:
+        error_msg = f"Failed to import required modules:\n{str(e2)}\n\nPlease make sure all files are in the correct location."
+        if logger:
+            logger.error(error_msg)
+        else:
+            print(error_msg)
+        QMessageBox.critical(None, "Import Error", error_msg)
+        sys.exit(1)
 
 # Global logger untuk exception handler
 _global_logger = None
@@ -22,13 +63,21 @@ def get_global_logger():
     """Get global logger instance"""
     global _global_logger
     if _global_logger is None:
-        _global_logger = setup_logger()
+        try:
+            _global_logger = setup_logger()
+        except Exception as e:
+            print(f"Warning: Could not setup logger: {e}")
+            # Return a simple logger
+            import logging
+            _global_logger = logging.getLogger('android_mirror')
+            _global_logger.setLevel(logging.INFO)
+            _global_logger.addHandler(logging.StreamHandler(sys.stdout))
     return _global_logger
 
 def check_scrcpy():
     """Check if scrcpy is available"""
     # Cek di folder proyek
-    project_dir = os.path.dirname(__file__)
+    project_dir = os.path.dirname(os.path.abspath(__file__))
     local_scrcpy = os.path.join(project_dir, 'scrcpy', 'scrcpy.exe')
     if os.path.exists(local_scrcpy):
         return True, local_scrcpy
@@ -49,7 +98,7 @@ def check_adb():
         return True, adb_path
     
     # Cek di folder scrcpy
-    project_dir = os.path.dirname(__file__)
+    project_dir = os.path.dirname(os.path.abspath(__file__))
     local_adb = os.path.join(project_dir, 'scrcpy', 'adb.exe')
     if os.path.exists(local_adb):
         return True, local_adb
@@ -70,12 +119,10 @@ def check_system_requirements():
     if not adb_ok:
         issues.append("ADB not found")
     
-    # Check Python version
+    # Check Python version (for info only)
     python_version = sys.version_info
-    if python_version.major < 3 or (python_version.major == 3 and python_version.minor < 8):
-        issues.append(f"Python {python_version.major}.{python_version.minor} (need 3.8+)")
     
-    return issues, {'scrcpy': scrcpy_path, 'adb': adb_path}
+    return issues, {'scrcpy': scrcpy_path, 'adb': adb_path, 'python': python_version}
 
 def parse_arguments():
     """Parse command line arguments"""
@@ -84,11 +131,9 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python main.py                     # Start with default settings
-  python main.py --max-fps 30        # Limit to 30 FPS
-  python main.py --max-size 720      # Limit resolution to 720p
-  python main.py --no-audio          # Disable audio streaming
-  python main.py --stay-awake        # Keep device awake while mirroring
+  android-mirror                     # Start with default settings
+  android-mirror --max-fps 30        # Limit to 30 FPS
+  android-mirror --max-size 720      # Limit resolution to 720p
         """
     )
     parser.add_argument('--max-fps', type=int, default=60,
@@ -110,7 +155,6 @@ Examples:
 def show_splash_screen(app):
     """Show splash screen while loading"""
     try:
-        # Create a simple splash screen
         splash_pixmap = QPixmap(400, 300)
         splash_pixmap.fill(Qt.transparent)
         
@@ -122,7 +166,6 @@ def show_splash_screen(app):
             }
         """)
         
-        # Show loading message
         splash.show()
         splash.showMessage(
             "Loading Android Mirror...\n\n"
@@ -139,29 +182,30 @@ def show_splash_screen(app):
 
 def main():
     """Main application entry point"""
+    global logger
+    
     # Setup logging
-    logger = setup_logger()
-    global _global_logger
-    _global_logger = logger
+    try:
+        log = get_global_logger()
+        log.info("=" * 50)
+        log.info("Android Mirror Application Starting")
+        log.info(f"Python version: {sys.version}")
+        log.info(f"Platform: {platform.system()} {platform.release()}")
+        log.info("=" * 50)
+    except Exception:
+        pass
     
-    logger.info("=" * 50)
-    logger.info("Android Mirror Application Starting")
-    logger.info(f"Python version: {sys.version}")
-    logger.info(f"Platform: {platform.system()} {platform.release()}")
-    logger.info("=" * 50)
-    
-    # Parse arguments early for logging
+    # Parse arguments
     args = parse_arguments()
-    logger.info(f"Command line arguments: {vars(args)}")
     
     # Create Qt application
     app = QApplication(sys.argv)
     app.setApplicationName("Android Mirror")
     app.setOrganizationName("AndroidMirror")
-    app.setStyle('Fusion')  # Modern style
+    app.setStyle('Fusion')
     
-    # Set application icon (if exists)
-    icon_path = os.path.join(os.path.dirname(__file__), 'resources', 'icons', 'app_icon.ico')
+    # Set application icon
+    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'icons', 'app_icon.ico')
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
     
@@ -170,7 +214,6 @@ def main():
     if splash:
         splash.showMessage(
             "Checking system requirements...\n\n"
-            "• Python OK\n"
             "• Checking scrcpy...\n"
             "• Checking ADB...",
             Qt.AlignCenter | Qt.AlignBottom,
@@ -189,21 +232,18 @@ def main():
         for issue in issues:
             error_msg += f"✗ {issue}\n"
         error_msg += "\nPlease install missing components and try again.\n\n"
-        error_msg += "Required:\n"
-        error_msg += "  • scrcpy: https://github.com/Genymobile/scrcpy\n"
-        error_msg += "  • ADB: https://developer.android.com/studio/releases/platform-tools"
         
-        logger.error(error_msg)
+        try:
+            log.error(error_msg)
+        except:
+            pass
+        
         QMessageBox.critical(None, "System Requirements Failed", error_msg)
         return 1
-    
-    logger.info(f"✓ scrcpy found: {paths['scrcpy']}")
-    logger.info(f"✓ ADB found: {paths['adb']}")
     
     if splash:
         splash.showMessage(
             "Loading configuration...\n\n"
-            "✓ Python OK\n"
             "✓ scrcpy OK\n"
             "✓ ADB OK\n"
             "Loading settings...",
@@ -215,15 +255,16 @@ def main():
     # Load configuration
     try:
         config = load_config()
-        logger.info("Configuration loaded successfully")
     except Exception as e:
-        logger.error(f"Failed to load configuration: {e}")
         config = {}
+        try:
+            log.error(f"Failed to load configuration: {e}")
+        except:
+            pass
     
     if splash:
         splash.showMessage(
             "Initializing UI...\n\n"
-            "✓ Python OK\n"
             "✓ scrcpy OK\n"
             "✓ ADB OK\n"
             "✓ Settings loaded\n"
@@ -237,7 +278,6 @@ def main():
     try:
         window = MainWindow(config, args)
         
-        # Auto-connect if device specified
         if args.device:
             QTimer.singleShot(500, lambda: auto_connect_device(window, args))
         
@@ -246,14 +286,20 @@ def main():
         if splash:
             splash.finish(window)
         
-        logger.info("Application started successfully")
+        try:
+            log.info("Application started successfully")
+        except:
+            pass
         
     except Exception as e:
         if splash:
             splash.close()
-        logger.error(f"Failed to create main window: {e}", exc_info=True)
-        QMessageBox.critical(None, "Startup Error", 
-                            f"Failed to start application:\n\n{str(e)}")
+        error_msg = f"Failed to start application:\n\n{str(e)}"
+        try:
+            log.error(error_msg, exc_info=True)
+        except:
+            pass
+        QMessageBox.critical(None, "Startup Error", error_msg)
         return 1
     
     # Start application
@@ -262,10 +308,9 @@ def main():
 def auto_connect_device(window, args):
     """Auto-connect to specified device"""
     try:
-        logger = get_global_logger()
+        log = get_global_logger()
         
         if args.wifi:
-            # Connect via WiFi
             if ':' in args.device:
                 ip = args.device.split(':')[0]
             else:
@@ -273,28 +318,33 @@ def auto_connect_device(window, args):
             window.device_manager.connect_wireless(ip)
             window._refresh_devices()
         else:
-            # USB device will be detected automatically
             window._refresh_devices()
             
-        # Select the device if found
         for i in range(window.device_combo.count()):
             if args.device in window.device_combo.itemText(i):
                 window.device_combo.setCurrentIndex(i)
                 break
                 
-        logger.info(f"Auto-connected to device: {args.device}")
+        log.info(f"Auto-connected to device: {args.device}")
     except Exception as e:
-        logger = get_global_logger()
-        logger.error(f"Auto-connect failed: {e}")
+        log = get_global_logger()
+        log.error(f"Auto-connect failed: {e}")
 
 if __name__ == '__main__':
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        logger = get_global_logger()
-        logger.info("Application terminated by user")
+        try:
+            log = get_global_logger()
+            log.info("Application terminated by user")
+        except:
+            pass
         sys.exit(0)
     except Exception as e:
-        logger = get_global_logger()
-        logger.error(f"Unhandled exception: {e}", exc_info=True)
+        try:
+            log = get_global_logger()
+            log.error(f"Unhandled exception: {e}", exc_info=True)
+        except:
+            print(f"Unhandled exception: {e}")
+            traceback.print_exc()
         sys.exit(1)

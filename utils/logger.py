@@ -33,32 +33,43 @@ def setup_logger(name='android_mirror', log_level=logging.INFO):
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
-    # Console handler with UTF-8 encoding fix
-    console_handler = logging.StreamHandler(sys.stdout)
+    # Console handler with safe encoding
+    try:
+        # For Windows console, use appropriate encoding
+        if sys.platform == 'win32':
+            import io
+            # Safely wrap stdout if needed
+            if hasattr(sys.stdout, 'buffer'):
+                sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+                sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(console_formatter)
+        logger.addHandler(console_handler)
+    except Exception as e:
+        # Fallback: simple console handler without encoding
+        console_handler = logging.StreamHandler(sys.__stdout__)
+        console_handler.setFormatter(console_formatter)
+        logger.addHandler(console_handler)
     
-    # Fix for Windows console encoding
-    if sys.platform == 'win32':
-        import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-    
-    console_handler.setFormatter(console_formatter)
-    logger.addHandler(console_handler)
-    
-    # File handler with UTF-8 encoding
-    log_dir = 'logs'
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    
-    log_file = os.path.join(log_dir, f'{name}_{datetime.now().strftime("%Y%m%d")}.log')
-    file_handler = RotatingFileHandler(
-        log_file, 
-        maxBytes=10*1024*1024,  # 10 MB
-        backupCount=5,
-        encoding='utf-8'  # Force UTF-8 encoding
-    )
-    file_handler.setFormatter(file_formatter)
-    logger.addHandler(file_handler)
+    # File handler with safe path handling
+    try:
+        log_dir = 'logs'
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+        
+        log_file = os.path.join(log_dir, f'{name}_{datetime.now().strftime("%Y%m%d")}.log')
+        file_handler = RotatingFileHandler(
+            log_file, 
+            maxBytes=10*1024*1024,  # 10 MB
+            backupCount=5,
+            encoding='utf-8'
+        )
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
+    except Exception as e:
+        # If file logging fails, just continue with console only
+        print(f"Warning: Could not setup file logging: {e}")
     
     _logger = logger
     return logger
@@ -67,7 +78,15 @@ def get_logger(name=None):
     """Get logger instance"""
     global _logger
     if _logger is None:
-        setup_logger()
+        try:
+            _logger = setup_logger()
+        except Exception:
+            # Ultimate fallback: basic logger
+            _logger = logging.getLogger('android_mirror')
+            _logger.setLevel(logging.INFO)
+            handler = logging.StreamHandler(sys.__stdout__)
+            handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+            _logger.addHandler(handler)
     
     if name:
         return _logger.getChild(name)
