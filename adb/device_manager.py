@@ -3,6 +3,8 @@ Device manager for ADB operations
 """
 
 import subprocess
+import os
+import sys
 import re
 import socket
 import threading
@@ -21,15 +23,35 @@ class DeviceManager:
         self.scan_thread = None
         self.scanning = False
         
+    def _run_hidden(self, cmd, timeout=10, capture=True):
+        """Run command with hidden console window"""
+        if sys.platform == 'win32':
+            CREATE_NO_WINDOW = 0x08000000
+            
+            if capture:
+                return subprocess.run(
+                    cmd, 
+                    capture_output=True, 
+                    text=True, 
+                    timeout=timeout,
+                    creationflags=CREATE_NO_WINDOW
+                )
+            else:
+                return subprocess.run(
+                    cmd, 
+                    timeout=timeout,
+                    creationflags=CREATE_NO_WINDOW
+                )
+        else:
+            if capture:
+                return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            else:
+                return subprocess.run(cmd, timeout=timeout)
+    
     def list_devices(self) -> List[Dict]:
         """List all connected devices"""
         try:
-            result = subprocess.run(
-                ['adb', 'devices', '-l'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            result = self._run_hidden(['adb', 'devices', '-l'])
             
             devices = []
             lines = result.stdout.strip().split('\n')[1:]
@@ -81,24 +103,18 @@ class DeviceManager:
         """
         try:
             # First, ensure ADB server is running
-            subprocess.run(['adb', 'start-server'], capture_output=True, timeout=5)
+            self._run_hidden(['adb', 'start-server'], timeout=5, capture=False)
             
             # Try to connect
             full_address = f"{ip_address}:{port}"
             self.logger.info(f"Connecting to {full_address}...")
             
-            result = subprocess.run(
-                ['adb', 'connect', full_address],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
+            result = self._run_hidden(['adb', 'connect', full_address], timeout=10)
             
             output = result.stdout + result.stderr
             
             if 'connected' in output.lower():
                 self.logger.info(f"✅ Connected to {full_address}")
-                # Refresh device list
                 self.list_devices()
                 return True
             elif 'already connected' in output.lower():
@@ -117,12 +133,7 @@ class DeviceManager:
         """Disconnect wireless device"""
         try:
             full_address = f"{ip_address}:{port}"
-            result = subprocess.run(
-                ['adb', 'disconnect', full_address],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            result = self._run_hidden(['adb', 'disconnect', full_address], timeout=5)
             
             if 'disconnected' in result.stdout:
                 self.logger.info(f"✅ Disconnected from {full_address}")
@@ -155,26 +166,22 @@ class DeviceManager:
             try:
                 # Quick ping test
                 result = subprocess.run(
-                    ['ping', '-n', '1', '-w', '1000', ip],
+                    ['ping', '-n', '1', '-w', '500', ip],
                     capture_output=True,
-                    timeout=2
+                    timeout=1,
+                    creationflags=0x08000000 if sys.platform == 'win32' else 0
                 )
                 
                 if result.returncode == 0:
                     # Try ADB connection
-                    test_connect = subprocess.run(
-                        ['adb', 'connect', f"{ip}:5555"],
-                        capture_output=True,
-                        text=True,
-                        timeout=3
-                    )
+                    test_connect = self._run_hidden(['adb', 'connect', f"{ip}:5555"], timeout=2)
                     
                     if 'connected' in test_connect.stdout.lower():
                         found_devices.append(ip)
                         self.logger.info(f"Found Android device at {ip}")
                     
                     # Disconnect after test
-                    subprocess.run(['adb', 'disconnect', f"{ip}:5555"], capture_output=True)
+                    self._run_hidden(['adb', 'disconnect', f"{ip}:5555"], timeout=2)
                     
             except Exception:
                 pass
@@ -188,18 +195,19 @@ class DeviceManager:
                 break
             ip = f"{network_prefix}{i}"
             thread = threading.Thread(target=scan_ip, args=(ip,))
+            thread.daemon = True
             thread.start()
             threads.append(thread)
             
             # Limit concurrent threads
-            if len(threads) >= 50:
+            if len(threads) >= 30:
                 for t in threads:
-                    t.join(timeout=2)
+                    t.join(timeout=1)
                 threads = []
         
         # Wait for remaining threads
         for t in threads:
-            t.join(timeout=2)
+            t.join(timeout=1)
         
         self.scanning = False
         self.logger.info(f"Scan completed. Found {len(found_devices)} device(s)")
@@ -214,23 +222,13 @@ class DeviceManager:
         """
         try:
             # Set ADB to TCP/IP mode on port 5555
-            result = subprocess.run(
-                ['adb', '-s', usb_serial, 'tcpip', '5555'],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
+            result = self._run_hidden(['adb', '-s', usb_serial, 'tcpip', '5555'], timeout=10)
             
             if 'restarting in TCP mode' in result.stdout:
                 self.logger.info(f"WiFi debugging enabled on {usb_serial}")
                 
                 # Get device IP
-                ip_result = subprocess.run(
-                    ['adb', '-s', usb_serial, 'shell', 'ip', 'route'],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
+                ip_result = self._run_hidden(['adb', '-s', usb_serial, 'shell', 'ip', 'route'], timeout=5)
                 
                 # Parse IP address
                 match = re.search(r'src (\d+\.\d+\.\d+\.\d+)', ip_result.stdout)
@@ -253,24 +251,14 @@ class DeviceManager:
         """Get IP address of connected device"""
         try:
             # Try via ADB
-            result = subprocess.run(
-                ['adb', '-s', serial, 'shell', 'ip', 'route'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            result = self._run_hidden(['adb', '-s', serial, 'shell', 'ip', 'route'], timeout=5)
             
             match = re.search(r'src (\d+\.\d+\.\d+\.\d+)', result.stdout)
             if match:
                 return match.group(1)
             
             # Alternative method
-            result2 = subprocess.run(
-                ['adb', '-s', serial, 'shell', 'ifconfig', 'wlan0'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            result2 = self._run_hidden(['adb', '-s', serial, 'shell', 'ifconfig', 'wlan0'], timeout=5)
             
             match2 = re.search(r'inet addr:(\d+\.\d+\.\d+\.\d+)', result2.stdout)
             if match2:
@@ -312,24 +300,14 @@ class DeviceManager:
         
         # Get ADB version
         try:
-            version_result = subprocess.run(
-                ['adb', 'version'],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
+            version_result = self._run_hidden(['adb', 'version'], timeout=2)
             info['adb_version'] = version_result.stdout.strip().split('\n')[0]
         except:
             pass
         
         # Get device model
         try:
-            model_result = subprocess.run(
-                ['adb', '-s', serial, 'shell', 'getprop', 'ro.product.model'],
-                capture_output=True,
-                text=True,
-                timeout=3
-            )
+            model_result = self._run_hidden(['adb', '-s', serial, 'shell', 'getprop', 'ro.product.model'], timeout=3)
             info['device_model'] = model_result.stdout.strip()
         except:
             pass
@@ -377,7 +355,7 @@ class DeviceManager:
                 cmd.extend(['-s', serial])
             cmd.extend(['shell', 'getprop', prop])
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = self._run_hidden(cmd, timeout=5)
             return result.stdout.strip()
             
         except Exception:
@@ -391,7 +369,7 @@ class DeviceManager:
                 cmd.extend(['-s', serial])
             cmd.extend(['shell', 'wm', 'size'])
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            result = self._run_hidden(cmd, timeout=5)
             match = re.search(r'(\d+x\d+)', result.stdout)
             return match.group(1) if match else 'Unknown'
             

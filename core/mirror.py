@@ -10,7 +10,6 @@ from typing import Optional, Callable
 from adb.device_manager import DeviceManager
 from utils.logger import get_logger
 
-
 class AndroidMirror:
     """Main mirroring controller"""
     
@@ -77,50 +76,28 @@ class AndroidMirror:
             # Set working directory to scrcpy folder so DLLs can be found
             scrcpy_dir = os.path.dirname(self.scrcpy_path)
             
-            # Start scrcpy process
-            creation_flags = 0
-            if os.name == 'nt':
-                creation_flags = subprocess.CREATE_NO_WINDOW
-            
+            # Start scrcpy with its own window
             self.scrcpy_process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
                 cwd=scrcpy_dir,
-                creationflags=creation_flags,
-                text=True
+                shell=False
             )
             
             # Check if process started successfully
-            time.sleep(1)
+            time.sleep(2)
             
             if self.scrcpy_process.poll() is not None:
-                stderr = self.scrcpy_process.stderr.read()
-                self.logger.error(f"scrcpy failed to start: {stderr}")
+                self.logger.error("scrcpy process exited immediately")
                 return False
             
             self.is_mirroring = True
             self.logger.info(f"Mirroring started with {optimization} optimization")
-            
-            # Start a thread to monitor stderr for errors
-            self._monitor_stderr()
             
             return True
             
         except Exception as e:
             self.logger.error(f"Failed to start mirroring: {e}")
             return False
-    
-    def _monitor_stderr(self):
-        """Monitor stderr for error messages"""
-        def monitor():
-            if self.scrcpy_process and self.scrcpy_process.stderr:
-                for line in self.scrcpy_process.stderr:
-                    if line:
-                        self.logger.info(f"scrcpy: {line.strip()}")
-        
-        thread = threading.Thread(target=monitor, daemon=True)
-        thread.start()
     
     def _build_scrcpy_command(self, device_serial: Optional[str], 
                               optimization: str = 'balanced') -> list:
@@ -137,14 +114,10 @@ class AndroidMirror:
             cmd.extend([
                 '--max-fps', '30',
                 '--max-size', '720',
-                '--video-bit-rate', '1M',
+                '--video-bit-rate', '2M',
                 '--video-codec', 'h264',
-                '--no-audio',
+                '--no-audio',  # Audio disabled for latency
                 '--video-buffer', '50',
-                '--window-x', '100',
-                '--window-y', '100',
-                '--window-width', '720',
-                '--window-height', '360',
             ])
             
         elif optimization == 'balanced':
@@ -155,11 +128,8 @@ class AndroidMirror:
                 '--video-bit-rate', '4M',
                 '--video-codec', 'h264',
                 '--video-buffer', '100',
-                '--window-x', '100',
-                '--window-y', '100',
-                '--window-width', '1024',
-                '--window-height', '720',
             ])
+            # Audio ENABLED by default (no --no-audio flag)
             
         elif optimization == 'quality':
             self.logger.info("Using HIGH QUALITY mode")
@@ -169,21 +139,30 @@ class AndroidMirror:
                 '--video-bit-rate', '16M',
                 '--video-codec', 'h265',
                 '--video-buffer', '200',
-                '--window-x', '100',
-                '--window-y', '100',
-                '--window-width', '1280',
-                '--window-height', '960',
             ])
+            # Audio ENABLED by default
+        
+        # ============ COMMON OPTIONS ============
         
         # Stay awake
         if self.config.get('stay_awake', True):
             cmd.append('--stay-awake')
         
+        # Audio codec (for better compatibility)
+        cmd.extend(['--audio-codec', 'opus'])
+        
         # Window title
         cmd.extend(['--window-title', f'Android Mirror ({optimization})'])
         
-        # Force always on top
-        cmd.append('--always-on-top')
+        # Window position and size
+        cmd.extend(['--window-x', '100', '--window-y', '100'])
+        
+        if optimization == 'latency':
+            cmd.extend(['--window-width', '800', '--window-height', '600'])
+        elif optimization == 'balanced':
+            cmd.extend(['--window-width', '1024', '--window-height', '768'])
+        else:
+            cmd.extend(['--window-width', '1280', '--window-height', '960'])
         
         return cmd
     
@@ -191,14 +170,13 @@ class AndroidMirror:
         """Stop screen mirroring"""
         if self.scrcpy_process:
             self.logger.info("Stopping mirroring...")
-            self.scrcpy_process.terminate()
             try:
+                self.scrcpy_process.terminate()
                 self.scrcpy_process.wait(timeout=5)
-                self.logger.info("Mirroring stopped")
-            except subprocess.TimeoutExpired:
-                self.logger.warning("Process didn't terminate, killing...")
+            except:
                 self.scrcpy_process.kill()
             self.is_mirroring = False
+            self.logger.info("Mirroring stopped")
     
     def capture_screenshot(self) -> bytes:
         """Capture screenshot from device"""

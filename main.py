@@ -8,9 +8,27 @@ import os
 import argparse
 import platform
 import traceback
+import subprocess
+
+# ============ HIDE CONSOLE ON WINDOWS ============
+if sys.platform == 'win32':
+    # Hide the main console window only
+    try:
+        import ctypes
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
+    except:
+        pass
+    
+    # JANGAN monkey patch subprocess! Biarkan scrcpy bisa menampilkan window
+    # Hanya gunakan _run_hidden di device_manager.py untuk ADB commands
+
 from PyQt5.QtWidgets import QApplication, QMessageBox, QSplashScreen
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPixmap, QFont, QIcon
+from core.mirror import AndroidMirror
+from ui.main_window import MainWindow
+from utils.logger import setup_logger
+from utils.config import load_config
 
 # Set up basic logging before anything else
 def setup_basic_logging():
